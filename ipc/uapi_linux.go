@@ -8,6 +8,7 @@ package ipc
 import (
 	"net"
 	"os"
+        "path/filepath" // Ensure this is imported
 
 	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/rwcancel"
@@ -50,7 +51,7 @@ func (l *UAPIListener) Addr() net.Addr {
 	return l.listener.Addr()
 }
 
-func UAPIListen(name string, file *os.File) (net.Listener, error) {
+func UAPIListen(rootDir string, name string, file *os.File) (net.Listener, error) {
 	// wrap file in listener
 
 	listener, err := net.FileListener(file)
@@ -68,9 +69,15 @@ func UAPIListen(name string, file *os.File) (net.Listener, error) {
 		connErr:  make(chan error, 1),
 	}
 
-	// watch for deletion of socket
+	socketDirectory := filepath.Join(rootDir, "sockets")
+	socketPath := sockPath(socketDirectory, name)
 
-	socketPath := sockPath(name)
+	_, err = net.ResolveUnixAddr("unix", socketPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// watch for deletion of socket
 
 	uapi.inotifyFd, err = unix.InotifyInit()
 	if err != nil {
